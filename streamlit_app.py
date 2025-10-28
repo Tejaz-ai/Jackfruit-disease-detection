@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 import base64
+import gdown
+import os
 
 # Page configuration
 st.set_page_config(
@@ -97,13 +99,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def download_model_from_drive():
+    """Download model from Google Drive if not exists"""
+    model_path = 'jackfruit_disease_updated.h5'
+    
+    if not os.path.exists(model_path):
+        st.sidebar.info("📥 Downloading AI model from Google Drive... (This may take 2-3 minutes)")
+        
+        # REPLACE THIS WITH YOUR ACTUAL GOOGLE DRIVE FILE ID
+        file_id = "1NCpByQkEduyaMpKqGE0Nv4E4JCbfQ6Ab"  # ← REPLACE THIS WITH YOUR FILE ID!
+        url = f"https://drive.google.com/uc?id={file_id}"
+        
+        try:
+            gdown.download(url, model_path, quiet=False)
+            st.sidebar.success("✅ Model downloaded successfully!")
+        except Exception as e:
+            st.sidebar.error(f"❌ Download failed: {e}")
+            st.error("""
+            **Please check:**
+            - Your Google Drive file ID is correct
+            - The file is publicly accessible
+            - You have stable internet connection
+            """)
+            st.stop()
+    
+    return model_path
+
 class MultimodalDiseaseFusion:
     def __init__(self):
         st.sidebar.info("🚀 Loading AI models...")
         
         try:
-            # Load your updated 7-class model
-            self.cnn_model = load_model('jackfruit_disease_updated.h5')
+            # Download and load model from Google Drive
+            model_path = download_model_from_drive()
+            self.cnn_model = load_model(model_path)
             
             # Try to load LSTM model if available
             try:
@@ -186,7 +215,7 @@ class MultimodalDiseaseFusion:
             
         except Exception as e:
             st.sidebar.error(f"❌ Error loading models: {str(e)}")
-            raise e
+            st.stop()
     
     def is_plant_leaf(self, image):
         """Enhanced plant leaf detection with better validation"""
@@ -382,7 +411,7 @@ def create_prediction_plot(image, diagnosis, confidence, all_predictions):
     return fig
 
 def main():
-    # Initialize fusion system
+    # Initialize fusion system - FIXED SESSION STATE
     if 'fusion_system' not in st.session_state:
         try:
             st.session_state.fusion_system = MultimodalDiseaseFusion()
@@ -624,17 +653,19 @@ def main():
                     - Make sure the image shows the leaf clearly with good lighting
                     """)
 
-    # Sidebar with additional information
+    # Sidebar with additional information - FIXED: Check if fusion_system exists
     with st.sidebar:
         st.markdown("### 🏥 System Status")
         st.success("✅ System Operational")
-        st.info(f"📊 **Available Classes:** {len(fusion_system.class_names)}")
         
-        st.markdown("### 📈 Detection Classes")
-        for idx, class_name in fusion_system.class_names.items():
-            severity = fusion_system.disease_info.get(class_name, {}).get('severity', 'Unknown')
-            severity_emoji = "🟢" if 'Healthy' in class_name else "🔴" if severity == 'High' else "🟡" if severity == 'Medium' else "🔵"
-            st.write(f"{severity_emoji} {class_name}")
+        if hasattr(fusion_system, 'class_names'):
+            st.info(f"📊 **Available Classes:** {len(fusion_system.class_names)}")
+            
+            st.markdown("### 📈 Detection Classes")
+            for idx, class_name in fusion_system.class_names.items():
+                severity = fusion_system.disease_info.get(class_name, {}).get('severity', 'Unknown')
+                severity_emoji = "🟢" if 'Healthy' in class_name else "🔴" if severity == 'High' else "🟡" if severity == 'Medium' else "🔵"
+                st.write(f"{severity_emoji} {class_name}")
         
         st.markdown("### 💡 Tips for Best Results")
         st.markdown("""
